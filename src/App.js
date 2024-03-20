@@ -1,40 +1,51 @@
-import { useState } from "react";
-import { render } from "react-dom";
+import { useState, useEffect } from "react";
 
-function Square({ value, onSquareClick }) {
+function Square({ value, onSquareClick, isWinningSquare, animate }) {
   return (
-    <button className='square' onClick={onSquareClick}>
+    <button
+      className={`square ${isWinningSquare ? "winning-square" : ""} ${
+        animate ? "fade-in" : ""
+      }`}
+      onClick={onSquareClick}
+    >
       {value}
     </button>
   );
 }
 
-function Board({ xIsNext, squares, onPlay, currentMove }) {
-  const winner = calculateWinner(squares);
-  let status;
-
-  if (winner) {
-    status = "Winner: " + winner + "!!!";
-  } else {
-    status = "Next player: " + (xIsNext ? "X" : "O");
-  }
-
+function Board({
+  xIsNext,
+  squares,
+  onSquareClick,
+  currentMove,
+  lastClickedSquare,
+  winner,
+}) {
   function handleClick(i) {
-    if (calculateWinner(squares) || squares[i]) {
+    if (winner || squares[i]) {
+      // console.log("Try again");
+      // console.log(winner);
       return;
     }
     const nextSquares = squares.slice();
-    if (xIsNext) {
-      nextSquares[i] = "X";
-    } else {
-      nextSquares[i] = "O";
-    }
-    onPlay(nextSquares);
+    nextSquares[i] = xIsNext ? "X" : "O";
+
+    const row = Math.ceil(i / 3);
+    const col = i % 3;
+    const location = `(${row}, ${col})`;
+
+    onSquareClick(nextSquares, location, i);
   }
 
   const renderSquare = (i) => {
     return (
-      <Square value={squares[i]} key={i} onSquareClick={() => handleClick(i)} />
+      <Square
+        value={squares[i]}
+        key={i}
+        onSquareClick={() => handleClick(i)}
+        isWinningSquare={winner && winner.line && winner.line.includes(i)}
+        animate={lastClickedSquare === i}
+      />
     );
   };
 
@@ -48,8 +59,6 @@ function Board({ xIsNext, squares, onPlay, currentMove }) {
 
   return (
     <>
-      <div className='status'>{status}</div>
-      <div className='status'>Current move: {currentMove}</div>
       {renderRow(0)}
       {renderRow(3)}
       {renderRow(6)}
@@ -57,44 +66,66 @@ function Board({ xIsNext, squares, onPlay, currentMove }) {
   );
 }
 
-function calculateWinner(squares) {
-  const lines = [
-    [0, 1, 2],
-    [0, 3, 6],
-    [0, 4, 8],
-    [1, 4, 7],
-    [2, 4, 6],
-    [2, 5, 8],
-    [3, 4, 5],
-    [6, 7, 8],
-  ];
-
-  // iterate through each line and check if each square has the same value
-  for (let line of lines) {
-    const [a, b, c] = line;
-
-    if (squares[a] && squares[a] === squares[b] && squares[b] === squares[c]) {
-      return squares[a];
-    }
-
-    if (!squares.includes(null)) {
-      return "Tied";
-    }
-  }
-  return null;
-}
-
 export default function Game() {
-  const [history, setHistory] = useState([Array(9).fill(null)]);
+  const [history, setHistory] = useState([
+    { squares: Array(9).fill(null), location: null },
+  ]);
   const [currentMove, setCurrentMove] = useState(0);
-  const [moveOrderAsc, setMoveOrderAsc] = useState(false);
+  const [moveOrderAsc, setMoveOrderAsc] = useState(true);
+  const [winner, setWinner] = useState(null);
+  const [lastClickedSquare, setLastClickedSquare] = useState(null);
   const xIsNext = currentMove % 2 === 0;
-  const currentSquares = history[currentMove];
+  const currentSquares = history[currentMove].squares;
 
-  function handlePlay(nextSquares) {
-    const nextHistory = [...history.slice(0, currentMove + 1), nextSquares];
+  const status = winner
+    ? "Winner: " + winner.winner + "!!!"
+    : "Next player: " + (xIsNext ? "X" : "O");
+
+  function calculateWinner(squares) {
+    const lines = [
+      [0, 1, 2],
+      [0, 3, 6],
+      [0, 4, 8],
+      [1, 4, 7],
+      [2, 4, 6],
+      [2, 5, 8],
+      [3, 4, 5],
+      [6, 7, 8],
+    ];
+
+    console.log("squares" + squares);
+
+    // iterate through each line and check if each square has the same value
+    for (let line of lines) {
+      const [a, b, c] = line;
+
+      if (
+        squares[a] &&
+        squares[a] === squares[b] &&
+        squares[b] === squares[c]
+      ) {
+        return { winner: squares[a], line };
+      }
+    }
+    if (!squares.includes(null)) {
+      return { winner: "Tied", line: null };
+    }
+    return null;
+  }
+
+  useEffect(() => {
+    setWinner(calculateWinner(currentSquares));
+  }, [currentSquares]);
+
+  function handlePlay(nextSquares, location, lastClickedSquare) {
+    const nextHistory = [
+      ...history.slice(0, currentMove + 1),
+      { squares: nextSquares, location },
+    ];
+
     setHistory(nextHistory);
-    setCurrentMove(nextHistory.length - 1);
+    setLastClickedSquare(lastClickedSquare);
+    setCurrentMove(currentMove + 1);
   }
 
   function jumpTo(nextMove) {
@@ -110,7 +141,7 @@ export default function Game() {
     if (move === currentMove) {
       description = "You are at move #" + move;
     } else if (move > 0) {
-      description = "Go to move #" + move;
+      description = "Go to move #" + move + ` ${history[move].location}`;
     } else {
       description = "Go to game start";
     }
@@ -127,27 +158,31 @@ export default function Game() {
 
   return (
     <div className='game'>
+      <h1 className='title'>Tic-Tac-Toe</h1>
+      <div className='status'>{status}</div>
+      <div className='status'>Current move: {currentMove}</div>
       <div className='game-board'>
-        <Board
-          xIsNext={xIsNext}
-          squares={currentSquares}
-          onPlay={handlePlay}
-          currentMove={currentMove}
-        />
-      </div>
-
-      <div className='game-info'>
-        <button onClick={handleSortToggle}>
-          Change sort order
-          <span
-            style={{
-              marginLeft: "0.5rem",
-            }}
-          >
-            {moveOrderAsc ? "\u2193" : "\u2191"}
-          </span>
-        </button>
-        <ol>{moveOrderAsc ? moves : moves.slice().reverse()}</ol>
+        <div>
+          <Board
+            xIsNext={xIsNext}
+            squares={currentSquares}
+            onSquareClick={handlePlay}
+            currentMove={currentMove}
+            lastClickedSquare={lastClickedSquare}
+            winner={winner}
+          />
+        </div>
+        <div className='game-info'>
+          <ol>
+            <button onClick={handleSortToggle}>
+              Change sort order
+              <span style={{ marginLeft: "0.5rem" }}>
+                {moveOrderAsc ? "\u2193" : "\u2191"}
+              </span>
+            </button>
+            {moveOrderAsc ? moves : moves.reverse()}
+          </ol>
+        </div>
       </div>
     </div>
   );
