@@ -87,6 +87,7 @@ function calculateWinner(squares) {
 export default function Game() {
   const [history, setHistory] = useState([Array(9).fill(null)]);
   const [currentMove, setCurrentMove] = useState(0);
+  const [moveOrderAsc, setMoveOrderAsc] = useState(false);
   const xIsNext = currentMove % 2 === 0;
   const currentSquares = history[currentMove];
 
@@ -98,6 +99,10 @@ export default function Game() {
 
   function jumpTo(nextMove) {
     setCurrentMove(nextMove);
+  }
+
+  function handleSortToggle() {
+    setMoveOrderAsc(!moveOrderAsc); // Toggle sort order
   }
 
   const moves = history.map((squares, move) => {
@@ -132,7 +137,17 @@ export default function Game() {
       </div>
 
       <div className='game-info'>
-        <ol>{moves}</ol>
+        <button onClick={handleSortToggle}>
+          Change sort order
+          <span
+            style={{
+              marginLeft: "0.5rem",
+            }}
+          >
+            {moveOrderAsc ? "\u2193" : "\u2191"}
+          </span>
+        </button>
+        <ol>{moveOrderAsc ? moves : moves.slice().reverse()}</ol>
       </div>
     </div>
   );
